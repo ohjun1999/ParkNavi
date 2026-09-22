@@ -60,12 +60,33 @@ KAKAO_NATIVE_APP_KEY=
 ./gradlew :app:testDebugUnitTest
 ```
 
-`BusStopRepositoryImplTest`(거리순 정렬, 실패 응답 처리), `NearbyStopsViewModelTest`(UiState 전이)가 포함되어 있습니다.
+`BusStopRepositoryImplTest`(거리순 정렬, 실패 응답 처리), `ItemsDeserializerTest`(TAGO 응답의 item
+배열/객체/빈 문자열 형태를 실제 Gson 파싱 경로로 검증), `NearbyStopsViewModelTest`(UiState 전이)가 포함되어 있습니다.
+
+## 실기기/에뮬레이터로 검증하며 실제로 잡은 버그 2개
+
+이 스켈레톤은 만들면서 끝낸 게 아니라, 에뮬레이터에 API 키를 넣고 직접 실행해서 검증했습니다. 그 과정에서
+유닛 테스트만으로는 못 잡는 버그를 2개 발견해서 고쳤습니다.
+
+1. **`ItemsDeserializer`가 "결과 0건" 응답을 못 받아냈다.** TAGO API는 결과가 없을 때 `items` 필드 자체가
+   `{}`가 아니라 빈 문자열 `""`로 내려오는데, 처음 짠 디시리얼라이저는 이 경우를 처리하지 않아
+   `IllegalStateException: Not a JSON Object: ""`로 죽었습니다. `BusStopRepositoryImplTest`는 API 응답을
+   코틀린 객체로 직접 만들어서 Repository에 주입하는 방식이라 이 문제를 잡지 못했고, 실제 Gson 파싱을 거치는
+   `ItemsDeserializerTest`를 추가하고 나서야 재발을 방지할 수 있었습니다.
+2. **`LocationProvider`가 부정확한 위치를 줬다.** `getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, ...)`
+   는 네트워크 기반 위치를 우선시해서, 에뮬레이터에서 `adb emu geo fix`로 넣은 좌표를 무시하고 구글 기본
+   위치(마운틴뷰)를 반환했습니다. `PRIORITY_HIGH_ACCURACY`(GPS 우선)로 바꿔서 해결했는데, 이건 애초에
+   "정확한 현재 위치 기준 근처 정류장"이 핵심 기능인 이 앱에는 배터리보다 정확도가 맞는 선택이기도 합니다.
 
 ## 알려진 한계 (다음 학습 주제)
 
+- **TAGO API는 서울 커버리지가 거의 없습니다.** 서울은 TAGO에 "정적연계"로만 잡혀 있어 실질적으로 정류소
+  데이터가 비어 있고(테스트 중 서울시청 좌표로 정상 응답 resultCode=00에 totalCount=0을 실제로 확인했습니다),
+  서울은 별도의 TOPIS(서울시 교통정보시스템) API를 써야 합니다. 비수도권 좌표(대전 등)로 테스트하거나, 지역별로
+  데이터 소스를 분기하는 건 다음 단계로 남겨뒀습니다.
 - 위치/정류장 목록을 화면 단위(`hiltViewModel()`)로만 캐싱합니다 — 지도 화면 ↔ 목록 화면을 오갈 때마다 API를 다시 호출합니다.
   Repository 레벨 캐싱/단일 소스 전략은 다음 단계로 남겨뒀습니다.
 - 위치 권한 거부 시 재요청 UX(설정으로 안내 등)는 구현하지 않았습니다.
-- Kakao Maps SDK는 공식 Compose 래퍼가 없어 `AndroidView`로 감쌌습니다 — SDK 특성상 실제 기기에서만
-  마커 렌더링을 눈으로 확인할 수 있습니다.
+- Kakao Maps SDK는 공식 Compose 래퍼가 없어 `AndroidView`로 감쌌습니다.
+- 카카오 디벨로퍼스 계정에 이미 다른 앱이 카카오맵/로그인을 쓰고 있다면, 새 앱은 무료 쿼터 대상이 아니라
+  비즈월렛(결제 카드) 연결이 필요할 수 있습니다 — 계정당 처음 활성화한 앱만 무료 쿼터를 받습니다.
