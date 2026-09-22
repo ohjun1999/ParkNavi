@@ -1,6 +1,7 @@
 package com.jun.parknavi.data.repository
 
 import com.jun.parknavi.data.model.LatLng
+import com.jun.parknavi.data.remote.ApiError
 import com.jun.parknavi.data.remote.BusStopApi
 import com.jun.parknavi.data.remote.dto.BusStopDto
 import com.jun.parknavi.data.remote.dto.ItemsDto
@@ -36,7 +37,7 @@ class BusStopRepositoryImplTest {
     }
 
     @Test
-    fun `resultCode가 실패면 예외를 던진다`() = runTest {
+    fun `resultCode가 실패면 ApiError Server를 던진다`() = runTest {
         coEvery { api.getNearbyStops(any(), any(), any(), any(), any()) } returns
             NearbyStopResponse(
                 ResponseWrapperDto(
@@ -48,9 +49,22 @@ class BusStopRepositoryImplTest {
         try {
             repository.getNearbyStops(from)
             fail("예외가 발생해야 한다")
-        } catch (e: IllegalStateException) {
-            assertEquals("서비스 오류", e.message)
+        } catch (e: ApiError.Server) {
+            assertEquals("99", e.resultCode)
+            assertEquals("서비스 오류", e.resultMsg)
         }
+    }
+
+    @Test
+    fun `필드가 빠진 레코드는 전체를 실패시키지 않고 건너뛴다`() = runTest {
+        coEvery { api.getNearbyStops(any(), any(), any(), any(), any()) } returns success(
+            far = BusStopDto(nodeid = null, nodenm = "위경도 없는 정류소", gpslati = null, gpslong = null),
+            near = BusStopDto("2", "가까운 정류소", 37.5670, 126.9785),
+        )
+
+        val stops = repository.getNearbyStops(from)
+
+        assertEquals(listOf("가까운 정류소"), stops.map { it.name })
     }
 
     private fun success(far: BusStopDto, near: BusStopDto) = NearbyStopResponse(

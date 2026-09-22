@@ -1,6 +1,7 @@
 package com.jun.parknavi.ui.screen.stops
 
 import android.Manifest
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,8 @@ import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 
+private const val TAG = "StopMapScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StopMapScreen(
@@ -51,11 +54,18 @@ fun StopMapScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    var mapErrorMessage by remember { mutableStateOf<String?>(null) }
+    // 직전에 그린 (위치, 정류장 목록)을 기억해서, 같은 데이터로 uiState/kakaoMap이 다시
+    // 바뀌었을 뿐일 때(예: 화면 재진입) 마커를 지웠다가 다시 그리는 걸 건너뛴다.
+    var drawnStops by remember { mutableStateOf<List<BusStop>?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) viewModel.load()
+    ) { _ ->
+        // 권한을 거부해도 load()는 호출한다 — ViewModel의 hasLocationPermission() 체크가
+        // "위치 권한이 필요합니다" Failed 상태를 만들어준다. 여기서 granted만 보고 막아버리면
+        // 거부했을 때 로딩 스피너가 영원히 멈춰서, 그 실패 경로 자체가 도달 불가능해진다.
+        viewModel.load()
     }
 
     LaunchedEffect(Unit) {
@@ -65,8 +75,9 @@ fun StopMapScreen(
     LaunchedEffect(uiState, kakaoMap) {
         val state = uiState
         val map = kakaoMap
-        if (state is NearbyStopsViewModel.UiState.Loaded && map != null) {
+        if (state is NearbyStopsViewModel.UiState.Loaded && map != null && state.stops != drawnStops) {
             map.drawStops(state.currentLocation, state.stops)
+            drawnStops = state.stops
         }
     }
 
@@ -85,10 +96,24 @@ fun StopMapScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             KakaoMapView(
                 modifier = Modifier.fillMaxSize(),
-                onMapReady = { kakaoMap = it },
+                onMapReady = { kakaoMap = it; mapErrorMessage = null },
+                onMapDestroyed = { kakaoMap = null },
+                onMapError = { error ->
+                    Log.e(TAG, "카카오맵 초기화 실패", error)
+                    kakaoMap = null
+                    mapErrorMessage = "지도를 불러오지 못했습니다."
+                },
             )
-            if (uiState is NearbyStopsViewModel.UiState.Loading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            when {
+                mapErrorMessage != null ->
+                    Text(mapErrorMessage.orEmpty(), modifier = Modifier.align(Alignment.Center))
+                uiState is NearbyStopsViewModel.UiState.Loading ->
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                uiState is NearbyStopsViewModel.UiState.Failed ->
+                    Text(
+                        (uiState as NearbyStopsViewModel.UiState.Failed).message,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
             }
         }
     }
@@ -98,9 +123,13 @@ fun StopMapScreen(
 private fun KakaoMapView(
     modifier: Modifier = Modifier,
     onMapReady: (KakaoMap) -> Unit,
+    onMapDestroyed: () -> Unit,
+    onMapError: (Exception) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnMapReady by rememberUpdatedState(onMapReady)
+    val currentOnMapDestroyed by rememberUpdatedState(onMapDestroyed)
+    val currentOnMapError by rememberUpdatedState(onMapError)
     val mapView = remember { mutableStateOf<MapView?>(null) }
 
     AndroidView(
@@ -110,8 +139,8 @@ private fun KakaoMapView(
                 mapView.value = view
                 view.start(
                     object : MapLifeCycleCallback() {
-                        override fun onMapDestroy() = Unit
-                        override fun onMapError(error: Exception) = Unit
+                        override fun onMapDestroy() = currentOnMapDestroyed()
+                        override fun onMapError(error: Exception) = currentOnMapError(error)
                     },
                     object : KakaoMapReadyCallback() {
                         override fun onMapReady(kakaoMap: KakaoMap) {
@@ -132,7 +161,13 @@ private fun KakaoMapView(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // MapView.start()는 네이티브 GL 리소스를 띄우므로, AndroidView가 뷰를 그냥
+            // detach하는 것만으로는 해제되지 않는다 — finish()로 명시적으로 정리해야 한다.
+            mapView.value?.finish()
+            mapView.value = null
+        }
     }
 }
 

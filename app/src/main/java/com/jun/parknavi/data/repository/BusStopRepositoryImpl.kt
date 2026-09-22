@@ -2,8 +2,10 @@ package com.jun.parknavi.data.repository
 
 import com.jun.parknavi.data.model.BusStop
 import com.jun.parknavi.data.model.LatLng
+import com.jun.parknavi.data.remote.ApiError
 import com.jun.parknavi.data.remote.BusStopApi
 import com.jun.parknavi.data.remote.dto.BusStopDto
+import java.io.IOException
 import javax.inject.Inject
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -15,21 +17,35 @@ class BusStopRepositoryImpl @Inject constructor(
 ) : BusStopRepository {
 
     override suspend fun getNearbyStops(from: LatLng): List<BusStop> {
-        val response = api.getNearbyStops(latitude = from.latitude, longitude = from.longitude)
+        val response = try {
+            api.getNearbyStops(latitude = from.latitude, longitude = from.longitude)
+        } catch (e: IOException) {
+            throw ApiError.Network(e)
+        } catch (e: Exception) {
+            throw ApiError.Unknown(e)
+        }
+
         val header = response.response.header
-        check(header.resultCode == RESULT_CODE_SUCCESS) { header.resultMsg }
+        if (header.resultCode != RESULT_CODE_SUCCESS) {
+            throw ApiError.Server(header.resultCode, header.resultMsg)
+        }
 
         val stops = response.response.body.items?.item.orEmpty()
         return stops
-            .map { it.toDomain(from) }
+            .mapNotNull { it.toDomain(from) }
             .sortedBy { it.distanceMeters }
     }
 
-    private fun BusStopDto.toDomain(from: LatLng): BusStop {
-        val position = LatLng(gpslati, gpslong)
+    // 필드 하나라도 빠진(nodeid/gpslati/gpslong이 null인) 레코드는 지도에 표시할 수 없으니
+    // 전체 목록을 실패시키지 않고 그 레코드만 건너뛴다.
+    private fun BusStopDto.toDomain(from: LatLng): BusStop? {
+        val id = nodeid ?: return null
+        val lat = gpslati ?: return null
+        val lng = gpslong ?: return null
+        val position = LatLng(lat, lng)
         return BusStop(
-            id = nodeid,
-            name = nodenm,
+            id = id,
+            name = nodenm ?: "이름 없음",
             position = position,
             distanceMeters = distanceMeters(from, position),
         )
