@@ -36,8 +36,8 @@ ApiService (Retrofit interface) → DTO (data/remote/dto)
 **위치**: `data/remote/dto/`, `data/remote/*Api.kt`
 
 - DTO는 서버(혹은 공공 API) 응답 필드를 그대로 옮긴 `data class`. 가공하지 않는다.
-- 인증/공통 쿼리 파라미터(`serviceKey` 등)는 ApiService 시그니처에 넣지 않고 OkHttp `Interceptor`로 자동 주입한다. 예: [`TagoAuthInterceptor.kt`](../../app/src/main/java/com/jun/parknavi/data/remote/TagoAuthInterceptor.kt).
-- 공공데이터포털류 API는 결과 0/1건일 때 배열 대신 객체가 오는 경우가 흔하다 — 이런 응답 형태 문제는 DTO를 늘리지 말고 `Gson` `JsonDeserializer`로 흡수한다. 예: [`ItemsDeserializer.kt`](../../app/src/main/java/com/jun/parknavi/data/remote/ItemsDeserializer.kt).
+- 인증/공통 쿼리 파라미터(`serviceKey` 등)는 ApiService 시그니처에 넣지 않고 OkHttp `Interceptor`로 자동 주입한다. 예: [`SeoulAuthInterceptor.kt`](../../app/src/main/java/com/jun/parknavi/data/remote/SeoulAuthInterceptor.kt).
+- 공공데이터포털류 API는 결과 0/1건일 때 배열 대신 객체가 오는 경우가 흔하다 — 이런 응답 형태 문제는 DTO를 늘리지 말고 `Gson` `JsonDeserializer`로 흡수한다. 예: [`SeoulItemListDeserializer.kt`](../../app/src/main/java/com/jun/parknavi/data/remote/SeoulItemListDeserializer.kt).
 
 ## 2. Repository 레이어
 
@@ -69,7 +69,7 @@ class BusStopRepositoryImpl @Inject constructor(
 
 - `@Provides`: 이 프로젝트가 만들지 않는 외부 타입(Retrofit, OkHttpClient, Gson)을 조립할 때.
 - `@Binds`: 이 프로젝트가 만든 interface ↔ impl을 연결할 때 (`@Provides`보다 짧고, 컴파일 시점에 더 명확하다).
-- `@Inject constructor`가 있는 클래스(`TagoAuthInterceptor`, `BusStopRepositoryImpl`, `LocationProvider`, `NearbyStopsViewModel` 등)는 별도 `@Provides` 없이 Hilt가 알아서 만든다 — 새 `@Module` 함수를 추가하기 전에 그냥 `@Inject constructor`로 되는지부터 확인한다.
+- `@Inject constructor`가 있는 클래스(`SeoulAuthInterceptor`, `BusStopRepositoryImpl`, `LocationProvider`, `NearbyStopsViewModel` 등)는 별도 `@Provides` 없이 Hilt가 알아서 만든다 — 새 `@Module` 함수를 추가하기 전에 그냥 `@Inject constructor`로 되는지부터 확인한다.
 - 새 API 도메인을 추가할 때는 `NetworkModule`에 함수를 더 늘리지 말고, 그 Api 인터페이스도 `@Inject constructor`를 쓸 수 있는 Repository 안에서 `retrofit.create(...)`로 직접 provide하는 한 줄만 추가한다.
 
 ## 4. ViewModel 규약

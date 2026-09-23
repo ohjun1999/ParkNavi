@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+서울시 버스운행정보 공유서비스(ws.bus.go.kr)는 HTTPS를 지원하지 않는 레거시 공공 API라
+이 도메인에 한해서만 평문(cleartext) HTTP를 허용한다. 앱 전체에 허용하지 않고
+도메인을 좁혀서, 다른 통신은 여전히 HTTPS만 되게 막아둔다.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">ws.bus.go.kr</domain>
+    </domain-config>
+</network-security-config>

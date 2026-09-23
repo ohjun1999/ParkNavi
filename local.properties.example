@@ -1,8 +1,9 @@
 sdk.dir=/path/to/Android/sdk
 
-# 공공데이터포털(data.go.kr)에서 발급받은 "일반 인증키(Encoding)" 값을 그대로 붙여넣으세요.
-# https://www.data.go.kr/data/15098534/openapi.do (국토교통부_(TAGO)_버스정류소정보)
-TAGO_SERVICE_KEY=
+# 공공데이터포털(data.go.kr)에서 "서울특별시_정류소정보조회 서비스"에 활용신청 후 발급받은
+# "일반 인증키(Encoding)" 값을 그대로 붙여넣으세요.
+# https://www.data.go.kr/data/3097890/openapi.do
+SEOUL_SERVICE_KEY=
 
 # 카카오 디벨로퍼스(developers.kakao.com) 앱의 네이티브 앱 키
 KAKAO_NATIVE_APP_KEY=

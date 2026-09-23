@@ -31,8 +31,8 @@ android {
 
         buildConfigField(
             "String",
-            "TAGO_SERVICE_KEY",
-            "\"${localProperties.getProperty("TAGO_SERVICE_KEY", "")}\""
+            "SEOUL_SERVICE_KEY",
+            "\"${localProperties.getProperty("SEOUL_SERVICE_KEY", "")}\""
         )
         buildConfigField(
             "String",
